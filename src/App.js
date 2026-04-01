@@ -38,7 +38,7 @@ const TOPICS = [
   },
 ];
 
-const STORAGE_QUESTIONS = 'chemQuiz_questions_v2'; // v2: 20 questions per quiz
+const STORAGE_QUESTIONS = 'chemQuiz_questions_v3'; // v3: enforce exactly 20
 const STORAGE_USERNAME = 'chemQuiz_username';
 const STORAGE_USER_ID = 'chemQuiz_userId';
 

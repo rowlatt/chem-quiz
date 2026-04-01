@@ -65,7 +65,13 @@ Return ONLY a valid JSON array with no markdown, no code fences, no extra text. 
       throw new Error('API returned an unexpected format.');
     }
 
-    res.status(200).json({ questions });
+    // Trim any extras and enforce exactly 20
+    const trimmed = questions.slice(0, 20);
+    if (trimmed.length < 20) {
+      throw new Error(`Expected 20 questions but only got ${trimmed.length}. Please try again.`);
+    }
+
+    res.status(200).json({ questions: trimmed });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to generate questions' });
   }

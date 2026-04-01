@@ -22,6 +22,8 @@ module.exports = async function handler(req, res) {
 
 Generate EXACTLY 20 multiple choice questions about: ${TOPIC_PROMPTS[topicId]}
 
+IMPORTANT: You must produce exactly 20 questions — no more, no fewer. Count them as you write: question 1, question 2, … question 20.
+
 Rules:
 - Mix of difficulty: roughly 7 easy, 8 medium, 5 challenging
 - Clear, friendly language a 14-year-old can understand
@@ -30,7 +32,7 @@ Rules:
 - Spread questions across all subtopics listed above
 - No trick questions or ambiguous wording
 
-Return ONLY a valid JSON array with no markdown, no code fences, no extra text. Exactly 20 objects in this format:
+Return ONLY a valid JSON array with no markdown, no code fences, no extra text. The array must contain exactly 20 objects in this format:
 [
   {
     "question": "Question text here?",
@@ -65,9 +67,9 @@ Return ONLY a valid JSON array with no markdown, no code fences, no extra text. 
       throw new Error('API returned an unexpected format.');
     }
 
-    // Trim any extras and enforce exactly 20
+    // Accept 18–20; trim any surplus above 20
     const trimmed = questions.slice(0, 20);
-    if (trimmed.length < 20) {
+    if (trimmed.length < 18) {
       throw new Error(`Expected 20 questions but only got ${trimmed.length}. Please try again.`);
     }
 

@@ -516,7 +516,7 @@ function HomeScreen({ topics, onStart, onProgress, onSwitchUser, history, userna
                 <span style={S.topicEmoji}>{topic.emoji}</span>
                 <h3 style={S.topicName}>{topic.name}</h3>
                 <p style={S.topicDesc}>{topic.desc}</p>
-                <span style={{ color: '#64748b', fontSize: 11 }}>40 questions</span>
+                <span style={{ color: '#64748b', fontSize: 11 }}>20 questions</span>
                 {best !== null && (
                   <div style={{ ...S.badge, background: topic.color + '22', color: topic.color }}>
                     Best: {best}%

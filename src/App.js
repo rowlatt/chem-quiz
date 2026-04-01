@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { loginOrCreateUser, fetchSessions, saveSession } from './supabase';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -37,8 +38,9 @@ const TOPICS = [
   },
 ];
 
-const STORAGE_HISTORY = 'chemQuiz_history_v1';
 const STORAGE_QUESTIONS = 'chemQuiz_questions_v1';
+const STORAGE_USERNAME = 'chemQuiz_username';
+const STORAGE_USER_ID = 'chemQuiz_userId';
 
 const LOADING_MSGS = [
   'Mixing up some questions… 🧪',
@@ -49,16 +51,6 @@ const LOADING_MSGS = [
 ];
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
-
-const getHistory = () => {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_HISTORY) || '[]');
-  } catch {
-    return [];
-  }
-};
-
-const saveHistory = (h) => localStorage.setItem(STORAGE_HISTORY, JSON.stringify(h));
 
 const getCachedQs = (id) => {
   try {
@@ -380,17 +372,127 @@ const S = {
     padding: '20px',
     marginTop: 8,
   },
+  input: {
+    width: '100%',
+    padding: '14px 16px',
+    background: 'rgba(30,41,59,0.8)',
+    border: '1px solid rgba(148,163,184,0.25)',
+    borderRadius: 12,
+    color: '#f1f5f9',
+    fontSize: 16,
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  userChip: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 12px',
+    background: 'rgba(129,140,248,0.15)',
+    border: '1px solid rgba(129,140,248,0.3)',
+    borderRadius: 999,
+    color: '#818cf8',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
 };
+
+// ─── UsernameScreen ───────────────────────────────────────────────────────────
+
+function UsernameScreen({ savedUsername, onLogin }) {
+  const [value, setValue] = useState(savedUsername || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = useCallback(async (name) => {
+    const trimmed = (name ?? value).trim();
+    if (!trimmed) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await onLogin(trimmed);
+    } catch (err) {
+      setError(err.message || 'Could not connect. Check your internet connection.');
+      setLoading(false);
+    }
+  }, [value, onLogin]);
+
+  const handleKey = (e) => { if (e.key === 'Enter') handleSubmit(); };
+
+  // Returning user on same device
+  if (savedUsername) {
+    return (
+      <div style={{ ...S.page, ...S.loadingWrap }}>
+        <div style={{ textAlign: 'center', maxWidth: 400, width: '100%' }}>
+          <div style={{ fontSize: 64, marginBottom: 16 }}>👋</div>
+          <h2 style={{ margin: '0 0 6px', fontSize: 22 }}>Welcome back!</h2>
+          <p style={{ color: '#94a3b8', margin: '0 0 28px' }}>
+            Continue as <strong style={{ color: '#818cf8' }}>{savedUsername}</strong>?
+          </p>
+          <button
+            onClick={() => handleSubmit(savedUsername)}
+            disabled={loading}
+            style={{ ...S.nextBtn, background: '#6366f1', marginBottom: 12 }}
+          >
+            {loading ? 'Loading…' : `Continue as ${savedUsername}`}
+          </button>
+          <button
+            onClick={() => { setValue(''); setError(null); }}
+            style={{ ...S.btn, background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#64748b', fontSize: 13 }}
+          >
+            Use a different username
+          </button>
+          {error && <p style={{ color: '#fb923c', marginTop: 12, fontSize: 14 }}>{error}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...S.page, ...S.loadingWrap }}>
+      <div style={{ textAlign: 'center', maxWidth: 400, width: '100%' }}>
+        <h1 style={{ ...S.title, fontSize: 28, marginBottom: 8 }}>🧪 Year 9 Chemistry Quiz</h1>
+        <p style={{ color: '#94a3b8', margin: '0 0 32px', fontSize: 15, lineHeight: 1.6 }}>
+          Pick a username to save your scores and track your progress across devices!
+        </p>
+        <input
+          style={S.input}
+          placeholder="Enter a username…"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKey}
+          maxLength={30}
+          autoFocus
+        />
+        <p style={{ color: '#475569', fontSize: 12, margin: '8px 0 20px', textAlign: 'left' }}>
+          No password needed. Anyone with the same username can see your scores — pick something unique but not your real name!
+        </p>
+        <button
+          onClick={() => handleSubmit()}
+          disabled={loading || !value.trim()}
+          style={{ ...S.nextBtn, background: value.trim() ? '#6366f1' : '#334155', opacity: value.trim() ? 1 : 0.6 }}
+        >
+          {loading ? 'Setting up…' : 'Start Quizzing! 🚀'}
+        </button>
+        {error && <p style={{ color: '#fb923c', marginTop: 12, fontSize: 14 }}>{error}</p>}
+      </div>
+    </div>
+  );
+}
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
-function HomeScreen({ topics, onStart, onProgress, history }) {
+function HomeScreen({ topics, onStart, onProgress, onSwitchUser, history, username }) {
   const recent = history.slice(0, 3);
 
   return (
     <div style={S.page}>
       <div style={S.container}>
-        <div style={S.header}>
+        <div style={{ ...S.header, position: 'relative' }}>
+          <button onClick={onSwitchUser} style={{ ...S.userChip, position: 'absolute', right: 0, top: 32 }}>
+            👤 {username}
+          </button>
           <h1 style={S.title}>🧪 Year 9 Chemistry Quiz</h1>
           <p style={S.subtitle}>Master your chemistry topics one question at a time!</p>
         </div>
@@ -894,7 +996,12 @@ function ErrorScreen({ error, onHome }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [screen, setScreen] = useState('home');
+  const savedUsername = localStorage.getItem(STORAGE_USERNAME);
+  const savedUserId = localStorage.getItem(STORAGE_USER_ID);
+
+  const [screen, setScreen] = useState(savedUsername ? 'loading-user' : 'username');
+  const [username, setUsername] = useState(savedUsername || '');
+  const [userId, setUserId] = useState(savedUserId || null);
   const [currentTopic, setCurrentTopic] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentQ, setCurrentQ] = useState(0);
@@ -903,7 +1010,7 @@ export default function App() {
   const [wrongAnswers, setWrongAnswers] = useState([]);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [error, setError] = useState(null);
-  const [history, setHistory] = useState(getHistory);
+  const [history, setHistory] = useState([]);
 
   // Inject keyframe animation for spinner
   useEffect(() => {
@@ -911,6 +1018,15 @@ export default function App() {
     style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
+  }, []);
+
+  // Auto-login when stored credentials are present
+  useEffect(() => {
+    if (screen !== 'loading-user' || !savedUserId) return;
+    fetchSessions(savedUserId)
+      .then((sessions) => { setHistory(sessions); setScreen('home'); })
+      .catch(() => setScreen('home'));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Rotate loading messages while generating
@@ -922,6 +1038,26 @@ export default function App() {
     );
     return () => clearInterval(id);
   }, [screen]);
+
+  const handleLogin = useCallback(async (rawUsername) => {
+    const user = await loginOrCreateUser(rawUsername);
+    localStorage.setItem(STORAGE_USERNAME, user.username);
+    localStorage.setItem(STORAGE_USER_ID, user.id);
+    setUsername(user.username);
+    setUserId(user.id);
+    const sessions = await fetchSessions(user.id);
+    setHistory(sessions);
+    setScreen('home');
+  }, []);
+
+  const handleSwitchUser = useCallback(() => {
+    localStorage.removeItem(STORAGE_USERNAME);
+    localStorage.removeItem(STORAGE_USER_ID);
+    setUsername('');
+    setUserId(null);
+    setHistory([]);
+    setScreen('username');
+  }, []);
 
   const startTopic = useCallback(async (topic) => {
     setCurrentTopic(topic);
@@ -973,15 +1109,26 @@ export default function App() {
           return acc;
         }, {}),
       };
-      const newHistory = [session, ...getHistory()].slice(0, 100);
-      saveHistory(newHistory);
-      setHistory(newHistory);
+      // Persist to Supabase (fire-and-forget — don't block the UI)
+      saveSession(userId, session).catch(() => {});
+      setHistory((prev) => [session, ...prev].slice(0, 100));
       setScreen('result');
     } else {
       setCurrentQ((q) => q + 1);
       setSelectedAnswer(null);
     }
-  }, [currentQ, questions, currentTopic, score, wrongAnswers]);
+  }, [currentQ, questions, currentTopic, score, wrongAnswers, userId]);
+
+  if (screen === 'username')
+    return <UsernameScreen savedUsername={null} onLogin={handleLogin} />;
+
+  if (screen === 'loading-user')
+    return (
+      <div style={{ ...S.page, ...S.loadingWrap }}>
+        <div style={S.spinner} />
+        <p style={{ color: '#94a3b8', margin: 0 }}>Loading your progress…</p>
+      </div>
+    );
 
   if (screen === 'home')
     return (
@@ -989,7 +1136,9 @@ export default function App() {
         topics={TOPICS}
         onStart={startTopic}
         onProgress={() => setScreen('progress')}
+        onSwitchUser={handleSwitchUser}
         history={history}
+        username={username}
       />
     );
 

@@ -38,7 +38,7 @@ const TOPICS = [
   },
 ];
 
-const STORAGE_QUESTIONS = 'chemQuiz_questions_v1';
+const STORAGE_QUESTIONS = 'chemQuiz_questions_v2'; // v2: 20 questions per quiz
 const STORAGE_USERNAME = 'chemQuiz_username';
 const STORAGE_USER_ID = 'chemQuiz_userId';
 
@@ -904,25 +904,35 @@ function ProgressScreen({ history, topics, onHome, onClearCache }) {
                   </>
                 )}
 
-                <div style={{ ...S.sectionTitle, margin: '16px 0 8px' }}>📅 Recent Attempts</div>
-                {selected.sessions.slice(0, 6).map((s) => {
+                <div style={{ ...S.sectionTitle, margin: '16px 0 8px' }}>📅 Score History</div>
+                {/* Header row */}
+                <div style={{ ...S.reviseItem, borderBottom: '1px solid rgba(148,163,184,0.15)', paddingBottom: 6, marginBottom: 2 }}>
+                  <span style={{ color: '#475569', fontSize: 11, fontWeight: 700, flex: 2 }}>DATE</span>
+                  <span style={{ color: '#475569', fontSize: 11, fontWeight: 700, flex: 1, textAlign: 'center' }}>SCORE</span>
+                  <span style={{ color: '#475569', fontSize: 11, fontWeight: 700, flex: 1, textAlign: 'center' }}>%</span>
+                  <span style={{ color: '#475569', fontSize: 11, fontWeight: 700, flex: 1, textAlign: 'right' }}>TYPE</span>
+                </div>
+                {selected.sessions.map((s) => {
                   const p = calcPct(s.score, s.total);
+                  const scoreColor = p >= 70 ? '#34d399' : p >= 50 ? '#fbbf24' : '#fb923c';
                   return (
-                    <div key={s.id} style={S.reviseItem}>
-                      <span style={{ color: '#64748b', fontSize: 13 }}>
+                    <div key={s.id} style={{ ...S.reviseItem, alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontSize: 13, flex: 2 }}>
                         {new Date(s.date).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
+                          day: 'numeric', month: 'short', year: 'numeric',
                         })}
                       </span>
-                      <span
-                        style={{
-                          color: p >= 70 ? '#34d399' : p >= 50 ? '#fbbf24' : '#fb923c',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {s.score}/{s.total} ({p}%)
+                      <span style={{ color: scoreColor, fontWeight: 700, fontSize: 13, flex: 1, textAlign: 'center' }}>
+                        {s.score}/{s.total}
+                      </span>
+                      <span style={{ color: scoreColor, fontWeight: 700, fontSize: 13, flex: 1, textAlign: 'center' }}>
+                        {p}%
+                      </span>
+                      <span style={{
+                        flex: 1, textAlign: 'right', fontSize: 11, fontWeight: 700,
+                        color: s.isPartial ? '#94a3b8' : '#34d399',
+                      }}>
+                        {s.isPartial ? '~ Partial' : '✓ Full'}
                       </span>
                     </div>
                   );
@@ -1059,6 +1069,30 @@ export default function App() {
     setScreen('username');
   }, []);
 
+  // Called when user exits a quiz early via the Home button.
+  // Saves a partial session if at least one question has been answered.
+  const handleHomeFromQuiz = useCallback(() => {
+    const answeredCount = currentQ + (selectedAnswer !== null ? 1 : 0);
+    if (answeredCount > 0 && currentTopic) {
+      const session = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        topicId: currentTopic.id,
+        topicName: currentTopic.name,
+        score,
+        total: answeredCount,
+        wrongSubtopics: wrongAnswers.reduce((acc, wa) => {
+          if (wa.subtopic) acc[wa.subtopic] = (acc[wa.subtopic] || 0) + 1;
+          return acc;
+        }, {}),
+        isPartial: true,
+      };
+      saveSession(userId, session).catch(() => {});
+      setHistory((prev) => [session, ...prev].slice(0, 100));
+    }
+    setScreen('home');
+  }, [currentQ, selectedAnswer, currentTopic, score, wrongAnswers, userId]);
+
   const startTopic = useCallback(async (topic) => {
     setCurrentTopic(topic);
     setScreen('loading');
@@ -1108,6 +1142,7 @@ export default function App() {
           if (wa.subtopic) acc[wa.subtopic] = (acc[wa.subtopic] || 0) + 1;
           return acc;
         }, {}),
+        isPartial: false,
       };
       // Persist to Supabase (fire-and-forget — don't block the UI)
       saveSession(userId, session).catch(() => {});
@@ -1155,7 +1190,7 @@ export default function App() {
         score={score}
         onAnswer={handleAnswer}
         onNext={nextQuestion}
-        onHome={() => setScreen('home')}
+        onHome={handleHomeFromQuiz}
         topic={currentTopic}
       />
     );

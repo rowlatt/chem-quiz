@@ -52,6 +52,7 @@ export async function fetchSessions(userId) {
     score: row.score,
     total: row.total,
     wrongSubtopics: row.wrong_subtopics || {},
+    isPartial: row.is_partial || false,
   }));
 }
 
@@ -66,6 +67,7 @@ export async function saveSession(userId, session) {
     score: session.score,
     total: session.total,
     wrong_subtopics: session.wrongSubtopics,
+    is_partial: session.isPartial ?? false,
   });
 
   if (error) throw new Error(error.message);

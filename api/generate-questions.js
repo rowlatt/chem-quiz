@@ -20,17 +20,17 @@ module.exports = async function handler(req, res) {
 
   const prompt = `You are a friendly Year 9 chemistry teacher creating a quiz for 14-year-old students.
 
-Generate EXACTLY 40 multiple choice questions about: ${TOPIC_PROMPTS[topicId]}
+Generate EXACTLY 20 multiple choice questions about: ${TOPIC_PROMPTS[topicId]}
 
 Rules:
-- Mix of difficulty: roughly 14 easy, 16 medium, 10 challenging
+- Mix of difficulty: roughly 7 easy, 8 medium, 5 challenging
 - Clear, friendly language a 14-year-old can understand
 - Each question has exactly ONE correct answer
 - Explanations should be encouraging, accurate, and 1-2 sentences
 - Spread questions across all subtopics listed above
 - No trick questions or ambiguous wording
 
-Return ONLY a valid JSON array with no markdown, no code fences, no extra text. Exactly 40 objects in this format:
+Return ONLY a valid JSON array with no markdown, no code fences, no extra text. Exactly 20 objects in this format:
 [
   {
     "question": "Question text here?",

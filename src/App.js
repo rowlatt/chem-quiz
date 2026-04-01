@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Anthropic from '@anthropic-ai/sdk';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -49,20 +48,6 @@ const LOADING_MSGS = [
   'Almost ready! ✨',
 ];
 
-const TOPIC_PROMPTS = {
-  atoms: `Atoms and Ions for UK Year 9 chemistry. Cover: atomic structure (protons, neutrons, electrons), atomic number and mass number, isotopes, electron configuration/shells, the periodic table (groups, periods, metals vs non-metals), ion formation (gaining/losing electrons to become stable), ionic bonding, relative atomic mass, dot-and-cross diagrams, and the structure of the atom (nucleus vs electron shells).`,
-  metals: `Reactivity of Metals for UK Year 9 chemistry. Cover: the reactivity series (potassium down to copper and silver), reactions of metals with water and dilute acid, displacement reactions (more reactive metal displaces less reactive one from solution), extraction of metals from ores, reduction using carbon (blast furnace), thermite reaction, oxidation and reduction definitions, rusting and corrosion prevention methods, and everyday uses of metals.`,
-  salts: `Making Salts for UK Year 9 chemistry. Cover: acids (hydrochloric, sulfuric, nitric) and alkalis/bases, the pH scale, neutralisation reactions (acid + alkali gives salt + water), making soluble salts using acid + metal / acid + metal oxide / acid + carbonate, titration method, making insoluble salts by precipitation (mixing two solutions), evaporation and crystallisation to obtain solid salt, naming salts correctly (e.g. copper sulfate, sodium chloride, calcium nitrate), and writing word equations.`,
-  rates: `Rates of Reaction for UK Year 9 chemistry. Cover: collision theory (particles must collide with enough energy), factors affecting rate (temperature, concentration, surface area/particle size, catalysts, light), how each factor increases/decreases rate and why (in terms of collisions), measuring rate of reaction (gas collection, mass loss, colour change, light transmission), interpreting rate graphs (steep gradient = fast, flat = reaction stopped), activation energy concept, how catalysts lower activation energy, and real-world examples (enzymes as biological catalysts, iron catalyst in Haber process).`,
-};
-
-// ─── Anthropic client ────────────────────────────────────────────────────────
-
-const client = new Anthropic({
-  apiKey: process.env.REACT_APP_ANTHROPIC_API_KEY || '',
-  dangerouslyAllowBrowser: true,
-});
-
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 
 const getHistory = () => {
@@ -97,50 +82,19 @@ const clearCachedQs = () => localStorage.removeItem(STORAGE_QUESTIONS);
 // ─── Question generation ──────────────────────────────────────────────────────
 
 async function generateQuestions(topicId) {
-  const prompt = `You are a friendly Year 9 chemistry teacher creating a quiz for 14-year-old students.
-
-Generate EXACTLY 40 multiple choice questions about: ${TOPIC_PROMPTS[topicId]}
-
-Rules:
-- Mix of difficulty: roughly 14 easy, 16 medium, 10 challenging
-- Clear, friendly language a 14-year-old can understand
-- Each question has exactly ONE correct answer
-- Explanations should be encouraging, accurate, and 1-2 sentences
-- Spread questions across all subtopics listed above
-- No trick questions or ambiguous wording
-
-Return ONLY a valid JSON array with no markdown, no code fences, no extra text. Exactly 40 objects in this format:
-[
-  {
-    "question": "Question text here?",
-    "options": {"A": "First option", "B": "Second option", "C": "Third option", "D": "Fourth option"},
-    "correct": "A",
-    "explanation": "Brief encouraging explanation of the correct answer.",
-    "subtopic": "Specific subtopic name"
-  }
-]`;
-
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 8192,
-    messages: [{ role: 'user', content: prompt }],
+  const response = await fetch('/api/generate-questions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topicId }),
   });
 
-  const text = response.content[0].text.trim();
+  const data = await response.json();
 
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    const match = text.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error('Could not parse questions from API response.');
-    parsed = JSON.parse(match[0]);
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to generate questions');
   }
 
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error('API returned an unexpected format. Please try again.');
-  }
-  return parsed;
+  return data.questions;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -898,10 +852,9 @@ function ProgressScreen({ history, topics, onHome, onClearCache }) {
 
 function ErrorScreen({ error, onHome }) {
   const isApiKey =
-    !process.env.REACT_APP_ANTHROPIC_API_KEY ||
-    process.env.REACT_APP_ANTHROPIC_API_KEY === 'your_api_key_here' ||
     (error || '').toLowerCase().includes('401') ||
-    (error || '').toLowerCase().includes('auth');
+    (error || '').toLowerCase().includes('auth') ||
+    (error || '').toLowerCase().includes('api key');
 
   return (
     <div style={{ ...S.page, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -926,10 +879,8 @@ function ErrorScreen({ error, onHome }) {
               marginBottom: 16,
             }}
           >
-            Add your key to <strong style={{ color: '#818cf8' }}>.env</strong>:<br />
-            <span style={{ color: '#34d399' }}>REACT_APP_ANTHROPIC_API_KEY=sk-ant-...</span>
-            <br />
-            Then restart the dev server.
+            Set <span style={{ color: '#34d399' }}>ANTHROPIC_API_KEY</span> in your
+            Vercel project environment variables and redeploy.
           </div>
         )}
         <button onClick={onHome} style={{ ...S.btn, background: '#6366f1', marginTop: 8 }}>
